@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1a56a0">
+<title>광주 영업지도</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f6fa;color:#1a1a2e}
+
+/* 상단 헤더 */
+.header{background:#1a56a0;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.header h1{font-size:17px;font-weight:600;flex:1}
+.header-badge{font-size:11px;background:rgba(255,255,255,0.2);padding:3px 8px;border-radius:20px}
+
+/* 필터 패널 */
+.filter-panel{background:#fff;padding:14px 16px;border-bottom:1px solid #e8eaf0}
+.section-label{font-size:11px;color:#888;font-weight:600;letter-spacing:0.5px;margin-bottom:7px;text-transform:uppercase}
+
+/* 구 선택 버튼 */
+.gu-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
+.gu-btn{border:1.5px solid #d0d5e8;border-radius:8px;padding:7px 2px;font-size:12px;font-weight:500;cursor:pointer;text-align:center;background:#fff;color:#666;transition:all 0.15s;line-height:1.3}
+.gu-btn.on{background:#1a56a0;border-color:#1a56a0;color:#fff}
+.gu-btn:active{transform:scale(0.95)}
+
+/* 날짜 */
+.date-row{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;margin-bottom:12px}
+.date-sep{font-size:13px;color:#aaa;text-align:center}
+input[type=date]{width:100%;height:38px;border:1.5px solid #d0d5e8;border-radius:8px;padding:0 8px;font-size:13px;color:#1a1a2e;background:#fff;appearance:none;-webkit-appearance:none}
+input[type=date]:focus{outline:none;border-color:#1a56a0}
+
+/* 업종 선택 */
+.biz-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none}
+.biz-scroll::-webkit-scrollbar{display:none}
+.biz-chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:1.5px solid #d0d5e8;font-size:12px;cursor:pointer;background:#fff;color:#555;white-space:nowrap;transition:all 0.15s}
+.biz-chip.on{border-color:transparent;color:#fff;font-weight:500}
+.biz-chip:active{transform:scale(0.95)}
+
+/* 조회 버튼 */
+.search-btn{width:100%;height:44px;background:#1a56a0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background 0.15s}
+.search-btn:active{background:#0d3d7a}
+.search-btn:disabled{background:#b0b8cc;cursor:not-allowed}
+
+/* 통계 바 */
+.stats-bar{display:grid;grid-template-columns:repeat(3,1fr);background:#f0f4ff;border-bottom:1px solid #e0e6f5}
+.stat-item{text-align:center;padding:10px 4px;border-right:1px solid #e0e6f5}
+.stat-item:last-child{border-right:none}
+.stat-num{font-size:20px;font-weight:700;color:#1a56a0}
+.stat-label{font-size:10px;color:#888;margin-top:1px}
+
+/* 탭 */
+.tab-bar{display:grid;grid-template-columns:1fr 1fr;background:#fff;border-bottom:1px solid #e8eaf0;position:sticky;top:57px;z-index:999}
+.tab{padding:11px;text-align:center;font-size:13px;font-weight:500;color:#888;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s}
+.tab.on{color:#1a56a0;border-bottom-color:#1a56a0}
+
+/* 지도 */
+#map{width:100%;height:calc(100vh - 280px);min-height:300px}
+.map-wrap{display:none}
+.map-wrap.on{display:block}
+
+/* 목록 */
+.list-wrap{display:none;max-height:calc(100vh - 280px);overflow-y:auto}
+.list-wrap.on{display:block}
+.place-item{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid #f0f2f8;cursor:pointer;background:#fff;transition:background 0.1s}
+.place-item:active{background:#f5f7ff}
+.dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;margin-top:4px;box-shadow:0 1px 3px rgba(0,0,0,0.25)}
+.place-info{flex:1;min-width:0}
+.place-name{font-size:14px;font-weight:600;color:#1a1a2e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.place-addr{font-size:12px;color:#666;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.place-meta{font-size:11px;color:#aaa;margin-top:2px}
+.place-actions{display:flex;gap:6px;margin-top:7px}
+.map-open-btn{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:500;border:none;cursor:pointer}
+.kakao-btn{background:#FEE500;color:#3C1E1E}
+.naver-btn{background:#03C75A;color:#fff}
+
+/* 빈 상태 */
+.empty-state{text-align:center;padding:48px 20px;color:#bbb}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-text{font-size:14px}
+
+/* 범례 */
+.legend-bar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid #e8eaf0}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:#666}
+.legend-dot{width:9px;height:9px;border-radius:50%}
+
+/* 로딩 */
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.loading-overlay.on{display:flex}
+.spinner{width:36px;height:36px;border:3px solid #e0e6f5;border-top-color:#1a56a0;border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:#666}
+
+/* 팝업 시트 */
+.bottom-sheet{position:fixed;bottom:-100%;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,0.15);z-index:2000;transition:bottom 0.3s ease;max-height:70vh;overflow-y:auto}
+.bottom-sheet.on{bottom:0}
+.sheet-handle{width:36px;height:4px;background:#ddd;border-radius:2px;margin:12px auto 0}
+.sheet-content{padding:16px}
+.sheet-title{font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.sheet-addr{font-size:13px;color:#666;margin-bottom:4px}
+.sheet-meta{font-size:12px;color:#aaa;margin-bottom:16px}
+.sheet-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sheet-btn{padding:13px;border-radius:10px;font-size:14px;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1999}
+.sheet-overlay.on{display:block}
+
+/* 방문 체크 */
+.check-badge{display:inline-block;font-size:10px;background:#e8f5e9;color:#2e7d32;padding:2px 6px;border-radius:10px;margin-top:3px}
+.visited{opacity:0.55}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">데이터 불러오는 중...</div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-content">
+    <div class="sheet-title" id="sheetName"></div>
+    <div class="sheet-addr" id="sheetAddr"></div>
+    <div class="sheet-meta" id="sheetMeta"></div>
+    <div class="sheet-btns">
+      <button class="sheet-btn" style="background:#FEE500;color:#3C1E1E" onclick="openKakao()">🗺 카카오맵</button>
+      <button class="sheet-btn" style="background:#03C75A;color:#fff" onclick="openNaver()">🗺 네이버지도</button>
+    </div>
+    <div style="margin-top:10px">
+      <button class="sheet-btn" id="visitBtn" style="width:100%;background:#f0f4ff;color:#1a56a0;margin-top:0" onclick="toggleVisit()">✓ 방문 완료 체크</button>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <span style="font-size:20px">📍</span>
+  <h1>광주 영업지도</h1>
+  <span class="header-badge">인허가 조회</span>
+</div>
+
+<div class="filter-panel">
+  <div class="section-label">구 선택</div>
+  <div class="gu-grid">
+    <button class="gu-btn on" data-gu="3711000" data-name="광산구" onclick="toggleGu(this)">광산구</button>
+    <button class="gu-btn" data-gu="3714000" data-name="동구" onclick="toggleGu(this)">동구</button>
+    <button class="gu-btn" data-gu="3711500" data-name="서구" onclick="toggleGu(this)">서구</button>
+    <button class="gu-btn" data-gu="3712000" data-name="북구" onclick="toggleGu(this)">북구</button>
+    <button class="gu-btn" data-gu="3713000" data-name="남구" onclick="toggleGu(this)">남구</button>
+  </div>
+
+  <div class="section-label">인허가 날짜</div>
+  <div class="date-row">
+    <input type="date" id="dateFrom">
+    <div class="date-sep">~</div>
+    <input type="date" id="dateTo">
+  </div>
+
+  <div class="section-label">업종</div>
+  <div class="biz-scroll" id="bizScroll"></div>
+
+  <button class="search-btn" onclick="doSearch()" id="searchBtn">
+    🔍 조회하기
+  </button>
+</div>
+
+<div id="resultArea" style="display:none">
+  <div class="stats-bar">
+    <div class="stat-item"><div class="stat-num" id="stTotal">0</div><div class="stat-label">전체</div></div>
+    <div class="stat-item"><div class="stat-num" id="stOpen" style="color:#0F6E56">0</div><div class="stat-label">영업중</div></div>
+    <div class="stat-item"><div class="stat-num" id="stVisit" style="color:#BA7517">0</div><div class="stat-label">방문완료</div></div>
+  </div>
+
+  <div class="legend-bar" id="legendBar"></div>
+
+  <div class="tab-bar">
+    <div class="tab on" id="tabMap" onclick="switchTab('map')">🗺 지도</div>
+    <div class="tab" id="tabList" onclick="switchTab('list')">📋 목록</div>
+  </div>
+
+  <div class="map-wrap on" id="mapWrap">
+    <div id="map"></div>
+  </div>
+  <div class="list-wrap" id="listWrap"></div>
+</div>
+
+<div id="emptyArea" style="display:none">
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <div class="empty-text">해당 기간 인허가 데이터가 없습니다</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const GU_COLORS = {
+  '3711000':'#1a56a0','3714000':'#D85A30',
+  '3711500':'#0F6E56','3712000':'#BA7517','3713000':'#993556'
+};
+const GU_NAMES = {
+  '3711000':'광산구','3714000':'동구','3711500':'서구','3712000':'북구','3713000':'남구'};
+const GU_CENTER = {
+  '3711000':[35.185,126.794],'3714000':[35.147,126.922],
+  '3711500':[35.154,126.853],'3712000':[35.176,126.913],'3713000':[35.129,126.901]
+};
+const BIZ_LIST = [
+  {id:'07_22_21_P',name:'일반음식점',color:'#e8543a'},
+  {id:'07_24_01_P',name:'휴게음식점',color:'#e8a23a'},
+  {id:'07_24_05_P',name:'제과점',color:'#c47ec0'},
+  {id:'07_22_05_P',name:'단란주점',color:'#5b6abf'},
+  {id:'07_22_08_P',name:'유흥주점',color:'#9c27b0'},
+  {id:'06_02_06_P',name:'미용업',color:'#e91e8c'},
+  {id:'06_02_04_P',name:'목욕장업',color:'#0097a7'},
+  {id:'03_01_02_P',name:'의원',color:'#388e3c'},
+  {id:'03_01_04_P',name:'치과의원',color:'#00796b'},
+  {id:'15_01_17_P',name:'편의점',color:'#f57c00'},
+];
+
+let selectedGu = new Set(['3711000']);
+let selectedBiz = '07_22_21_P';
+let map, markerLayer;
+let allData = [];
+let visitedSet = new Set(JSON.parse(localStorage.getItem('visited') || '[]'));
+let currentSheet = null;
+let markerRefs = {};
+
+// 업종 칩 렌더링
+function renderBizChips(){
+  const el = document.getElementById('bizScroll');
+  el.innerHTML = BIZ_LIST.map(b=>`
+    <div class="biz-chip ${b.id===selectedBiz?'on':''}" 
+      style="${b.id===selectedBiz?`background:${b.color};border-color:${b.color}`:''}"
+      onclick="selectBiz('${b.id}',this,'${b.color}')">${b.name}</div>
+  `).join('');
+}
+
+function selectBiz(id, el, color){
+  selectedBiz = id;
+  document.querySelectorAll('.biz-chip').forEach(c=>{
+    c.classList.remove('on');
+    c.style.background=''; c.style.borderColor='';
+  });
+  el.classList.add('on');
+  el.style.background = color;
+  el.style.borderColor = color;
+}
+
+function toggleGu(btn){
+  const gu = btn.dataset.gu;
+  if(selectedGu.has(gu)){
+    if(selectedGu.size===1) return;
+    selectedGu.delete(gu); btn.classList.remove('on');
+  } else {
+    selectedGu.add(gu); btn.classList.add('on');
+  }
+}
+
+function initMap(){
+  if(map) return;
+  map = L.map('map',{zoomControl:true,attributionControl:false}).setView([35.16,126.87],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+async function doSearch(){
+  const df = document.getElementById('dateFrom').value.replace(/-/g,'');
+  const dt = document.getElementById('dateTo').value.replace(/-/g,'');
+  if(!df||!dt){alert('날짜를 선택해주세요');return;}
+  if(df>dt){alert('시작일이 종료일보다 클 수 없습니다');return;}
+
+  showLoading('데이터 불러오는 중...');
+  document.getElementById('searchBtn').disabled=true;
+  document.getElementById('resultArea').style.display='none';
+  document.getElementById('emptyArea').style.display='none';
+  allData=[];
+
+  initMap();
+  markerLayer.clearLayers();
+  markerRefs={};
+
+  const guList = Array.from(selectedGu);
+  for(let i=0;i<guList.length;i++){
+    const gu=guList[i];
+    document.getElementById('loadingText').textContent=`${GU_NAMES[gu]} 조회 중... (${i+1}/${guList.length})`;
+    const items = await fetchData(selectedBiz,gu,df,dt);
+    items.forEach(item=>{
+      item._gu=gu; item._guName=GU_NAMES[gu]; item._color=GU_COLORS[gu];
+    });
+    allData=allData.concat(items);
+  }
+
+  hideLoading();
+  document.getElementById('searchBtn').disabled=false;
+
+  if(!allData.length){
+    document.getElementById('emptyArea').style.display='block';
+    return;
+  }
+
+  renderStats();
+  renderLegend();
+  renderList();
+  await plotMarkers();
+
+  document.getElementById('resultArea').style.display='block';
+  document.getElementById('resultArea').scrollIntoView({behavior:'smooth'});
+}
+
+async function fetchData(bizType,guCode,dateFrom,dateTo){
+  try{
+    const resp = await fetch(`/api/biz?bizType=${bizType}&guCode=${guCode}&dateFrom=${dateFrom}&dateTo=${dateTo}&pageSize=500`);
+    const data = await resp.json();
+    if(data.success) return data.items||[];
+    return [];
+  }catch(e){return [];}
+}
+
+function renderStats(){
+  const open = allData.filter(d=>(d.trdStateNm||'').includes('영업')).length;
+  const visited = allData.filter(d=>visitedSet.has(getKey(d))).length;
+  document.getElementById('stTotal').textContent=allData.length;
+  document.getElementById('stOpen').textContent=open;
+  document.getElementById('stVisit').textContent=visited;
+}
+
+function renderLegend(){
+  const guInUse = [...new Set(allData.map(d=>d._gu))];
+  document.getElementById('legendBar').innerHTML = guInUse.map(gu=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${GU_COLORS[gu]}"></div>${GU_NAMES[gu]}</div>`
+  ).join('');
+}
+
+function renderList(){
+  const wrap = document.getElementById('listWrap');
+  wrap.innerHTML = allData.map((d,i)=>{
+    const key=getKey(d);
+    const name=d.bplcNm||'업소명 없음';
+    const addr=d.rdnWhlAddr||d.jibunAddr||'주소 없음';
+    const date=fmtDate(d.apvPermYmd||'');
+    const state=d.trdStateNm||'';
+    const isVisited=visitedSet.has(key);
+    return `<div class="place-item ${isVisited?'visited':''}" id="li_${i}" onclick="openSheet(${i})">
+      <div class="dot" style="background:${d._color}"></div>
+      <div class="place-info">
+        <div class="place-name">${name}</div>
+        <div class="place-addr">${addr}</div>
+        <div class="place-meta">${d._guName} · ${d.uptaeNm||''} · ${date} 인허가 · <span style="color:${state.includes('영업')?'#0F6E56':'#A32D2D'}">${state}</span></div>
+        ${isVisited?'<span class="check-badge">✓ 방문완료</span>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function plotMarkers(){
+  const bounds=[];
+  const geocacheKey = 'geocache';
+  let geocache = {};
+  try{geocache=JSON.parse(localStorage.getItem(geocacheKey)||'{}');}catch(e){}
+
+  for(let i=0;i<allData.length;i++){
+    const d=allData[i];
+    let lat=null,lng=null;
+
+    if(d.x&&d.y){
+      const fx=parseFloat(d.x),fy=parseFloat(d.y);
+      if(fx>30&&fx<40){lat=fx;lng=fy;}
+      else if(fy>30&&fy<40){lat=fy;lng=fx;}
+    }
+
+    if(!lat){
+      const addr=d.rdnWhlAddr||d.jibunAddr||'';
+      if(addr&&geocache[addr]){
+        lat=geocache[addr].lat; lng=geocache[addr].lng;
+      } else if(addr){
+        try{
+          const r=await fetch(`/api/geocode?addr=${encodeURIComponent(addr)}`);
+          const g=await r.json();
+          if(g.lat){lat=g.lat;lng=g.lng;geocache[addr]={lat,lng};}
+        }catch(e){}
+      }
+    }
+
+    if(!lat){
+      const def=GU_CENTER[d._gu]||[35.16,126.87];
+      lat=def[0]+(Math.random()-0.5)*0.012;
+      lng=def[1]+(Math.random()-0.5)*0.012;
+    }
+
+    d._lat=lat; d._lng=lng;
+
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:13px;height:13px;border-radius:50%;background:${d._color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35)"></div>`,
+      iconSize:[13,13],iconAnchor:[6.5,6.5]
+    });
+    const m=L.marker([lat,lng],{icon}).addTo(markerLayer);
+    const idx=i;
+    m.on('click',()=>openSheet(idx));
+    markerRefs[i]=m;
+    bounds.push([lat,lng]);
+  }
+
+  try{localStorage.setItem(geocacheKey,JSON.stringify(geocache));}catch(e){}
+  if(bounds.length) map.fitBounds(bounds,{padding:[40,40]});
+}
+
+function getKey(d){return d.mgtNo||d.bplcNm+(d.rdnWhlAddr||'');}
+function fmtDate(s){if(!s||s.length<8)return s;return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;}
+
+let sheetIdx=null;
+function openSheet(i){
+  sheetIdx=i;
+  const d=allData[i];
+  const key=getKey(d);
+  document.getElementById('sheetName').textContent=d.bplcNm||'업소명 없음';
+  document.getElementById('sheetAddr').textContent=d.rdnWhlAddr||d.jibunAddr||'주소 없음';
+  document.getElementById('sheetMeta').textContent=
+    `${d._guName} · ${d.uptaeNm||''} · ${fmtDate(d.apvPermYmd||'')} 인허가 · ${d.trdStateNm||''}`;
+  const vb=document.getElementById('visitBtn');
+  vb.textContent=visitedSet.has(key)?'✓ 방문완료 취소':'✓ 방문 완료 체크';
+  vb.style.background=visitedSet.has(key)?'#e8f5e9':'#f0f4ff';
+  vb.style.color=visitedSet.has(key)?'#2e7d32':'#1a56a0';
+
+  if(map&&d._lat){map.setView([d._lat,d._lng],16);}
+
+  document.getElementById('bottomSheet').classList.add('on');
+  document.getElementById('sheetOverlay').classList.add('on');
+  currentSheet=d;
+}
+
+function closeSheet(){
+  document.getElementById('bottomSheet').classList.remove('on');
+  document.getElementById('sheetOverlay').classList.remove('on');
+}
+
+function openKakao(){
+  if(!currentSheet) return;
+  const addr=currentSheet.rdnWhlAddr||currentSheet.jibunAddr||'';
+  const name=encodeURIComponent(currentSheet.bplcNm||'');
+  const adr=encodeURIComponent(addr);
+  window.open(`kakaomap://search?q=${name}&p=${currentSheet._lat||0},${currentSheet._lng||0}`,'_blank');
+  setTimeout(()=>{
+    window.open(`https://map.kakao.com/?q=${adr}`,'_blank');
+  },500);
+}
+
+function openNaver(){
+  if(!currentSheet) return;
+  const lat=currentSheet._lat||35.16;
+  const lng=currentSheet._lng||126.87;
+  const name=encodeURIComponent(currentSheet.bplcNm||'목적지');
+  window.open(`nmap://route/public?dlat=${lat}&dlng=${lng}&dname=${name}&appname=gwangju.bizmap`,'_blank');
+  setTimeout(()=>{
+    window.open(`https://map.naver.com/v5/search/${name}?c=${lng},${lat},15,0,0,0,dh`,'_blank');
+  },500);
+}
+
+function toggleVisit(){
+  if(sheetIdx===null) return;
+  const d=allData[sheetIdx];
+  const key=getKey(d);
+  if(visitedSet.has(key)){visitedSet.delete(key);}
+  else{visitedSet.add(key);}
+  try{localStorage.setItem('visited',JSON.stringify([...visitedSet]));}catch(e){}
+  renderStats();
+  renderList();
+  openSheet(sheetIdx);
+  // 마커 업데이트
+  if(markerRefs[sheetIdx]){
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:13px;height:13px;border-radius:50%;background:${d._color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);opacity:${visitedSet.has(key)?0.4:1}"></div>`,
+      iconSize:[13,13],iconAnchor:[6.5,6.5]
+    });
+    markerRefs[sheetIdx].setIcon(icon);
+  }
+}
+
+function switchTab(tab){
+  document.getElementById('tabMap').classList.toggle('on',tab==='map');
+  document.getElementById('tabList').classList.toggle('on',tab==='list');
+  document.getElementById('mapWrap').classList.toggle('on',tab==='map');
+  document.getElementById('listWrap').classList.toggle('on',tab==='list');
+  if(tab==='map'&&map) setTimeout(()=>map.invalidateSize(),50);
+}
+
+function showLoading(msg){
+  document.getElementById('loadingText').textContent=msg||'로딩 중...';
+  document.getElementById('loading').classList.add('on');
+}
+function hideLoading(){document.getElementById('loading').classList.remove('on');}
+
+// 날짜 기본값
+const today=new Date();
+const y=today.getFullYear(),m=String(today.getMonth()+1).padStart(2,'0');
+document.getElementById('dateFrom').value=`${y}-${m}-01`;
+document.getElementById('dateTo').value=today.toISOString().slice(0,10);
+
+renderBizChips();
+</script>
+</body>
+</html>
