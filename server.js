@@ -6,6 +6,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = '48be9d61e4ae262e8c8fc2fd48201dfa108c77284b9ba088ebcdb7c40295ce08';
 
+// 업종별 실제 엔드포인트 (apis.data.go.kr)
+const BIZ_ENDPOINTS = {
+  '07_22_21_P': 'https://apis.data.go.kr/1741000/general_restaurants/info',
+  '07_24_01_P': 'https://apis.data.go.kr/1741000/snack_bars/info',
+  '07_24_05_P': 'https://apis.data.go.kr/1741000/bakeries/info',
+  '07_22_05_P': 'https://apis.data.go.kr/1741000/simple_entertainment/info',
+  '07_22_08_P': 'https://apis.data.go.kr/1741000/entertainment_bars/info',
+  '06_02_06_P': 'https://apis.data.go.kr/1741000/beauty_shops/info',
+  '06_02_04_P': 'https://apis.data.go.kr/1741000/public_baths/info',
+  '03_01_02_P': 'https://apis.data.go.kr/1741000/clinics/info',
+  '03_01_04_P': 'https://apis.data.go.kr/1741000/dental_clinics/info',
+  '15_01_17_P': 'https://apis.data.go.kr/1741000/convenience_stores/info',
+};
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
@@ -14,10 +28,10 @@ app.get('/api/biz', async (req, res) => {
   if (!bizType || !guCode || !dateFrom || !dateTo)
     return res.status(400).json({ error: '필수 파라미터 없음' });
 
-  const url = 'https://sample.localdata.go.kr/api/search';
+  const endpoint = BIZ_ENDPOINTS[bizType] || BIZ_ENDPOINTS['07_22_21_P'];
+
   const params = {
-    authKey: API_KEY,
-    opnSvcId: bizType,
+    serviceKey: API_KEY,
     localCode: guCode,
     lastModTsBgn: dateFrom,
     lastModTsEnd: dateTo,
@@ -26,15 +40,18 @@ app.get('/api/biz', async (req, res) => {
     resultType: 'json'
   };
 
-  console.log('요청:', url, params);
+  console.log('요청 URL:', endpoint);
+  console.log('파라미터:', params);
 
   try {
-    const r = await axios.get(url, {
+    const r = await axios.get(endpoint, {
       params,
       timeout: 20000,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://sample.localdata.go.kr/' }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
-    console.log('응답:', r.status, JSON.stringify(r.data).slice(0, 500));
+
+    console.log('응답상태:', r.status);
+    console.log('응답데이터:', JSON.stringify(r.data).slice(0, 500));
 
     const d = r.data;
     let items = [];
@@ -44,11 +61,17 @@ app.get('/api/biz', async (req, res) => {
     else if (d?.rows) items = d.rows;
     else if (d?.data) items = d.data;
     else if (d?.list) items = d.list;
+    else if (d?.items) items = Array.isArray(d.items) ? d.items : (d.items?.item ? [].concat(d.items.item) : []);
 
     res.json({ success: true, totalCnt: items.length, items });
   } catch (err) {
-    console.error('오류:', err.message, err.response?.status, JSON.stringify(err.response?.data).slice(0,300));
-    res.status(500).json({ error: err.message, status: err.response?.status, data: err.response?.data });
+    console.error('오류:', err.message);
+    console.error('응답:', err.response?.status, JSON.stringify(err.response?.data).slice(0, 500));
+    res.status(500).json({
+      error: err.message,
+      status: err.response?.status,
+      data: err.response?.data
+    });
   }
 });
 
@@ -58,7 +81,8 @@ app.get('/api/geocode', async (req, res) => {
   try {
     const r = await axios.get('https://nominatim.openstreetmap.org/search', {
       params: { format: 'json', q: addr, limit: 1, countrycodes: 'kr' },
-      headers: { 'User-Agent': 'GwangjuBizMap/1.0' }, timeout: 8000
+      headers: { 'User-Agent': 'GwangjuBizMap/1.0' },
+      timeout: 8000
     });
     const g = r.data[0];
     res.json(g ? { lat: parseFloat(g.lat), lng: parseFloat(g.lon) } : { lat: null, lng: null });
