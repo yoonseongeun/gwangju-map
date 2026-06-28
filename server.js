@@ -14,12 +14,28 @@ app.get('/api/biz', async (req, res) => {
   if (!bizType || !guCode || !dateFrom || !dateTo)
     return res.status(400).json({ error: '필수 파라미터 없음' });
 
-  const url = `https://sample.localdata.go.kr/datakorea/openapi/prtc/getSvcInfo?authKey=${API_KEY}&opnSvcId=${bizType}&localCode=${guCode}&lastModTsBgn=${dateFrom}&lastModTsEnd=${dateTo}&pageIndex=1&pageSize=500&resultType=json`;
-  console.log('요청:', url);
+  const url = 'https://sample.localdata.go.kr/api/search';
+  const params = {
+    authKey: API_KEY,
+    opnSvcId: bizType,
+    localCode: guCode,
+    lastModTsBgn: dateFrom,
+    lastModTsEnd: dateTo,
+    pageIndex: 1,
+    pageSize: 500,
+    resultType: 'json'
+  };
+
+  console.log('요청:', url, params);
 
   try {
-    const r = await axios.get(url, { timeout: 20000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    console.log('응답:', r.status, JSON.stringify(r.data).slice(0, 300));
+    const r = await axios.get(url, {
+      params,
+      timeout: 20000,
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://sample.localdata.go.kr/' }
+    });
+    console.log('응답:', r.status, JSON.stringify(r.data).slice(0, 500));
+
     const d = r.data;
     let items = [];
     if (Array.isArray(d)) items = d;
@@ -27,6 +43,8 @@ app.get('/api/biz', async (req, res) => {
     else if (d?.body) items = Array.isArray(d.body) ? d.body : [];
     else if (d?.rows) items = d.rows;
     else if (d?.data) items = d.data;
+    else if (d?.list) items = d.list;
+
     res.json({ success: true, totalCnt: items.length, items });
   } catch (err) {
     console.error('오류:', err.message, err.response?.status, JSON.stringify(err.response?.data).slice(0,300));
