@@ -273,7 +273,7 @@ function plotMarkers(){
 }
 
 function getKey(d){return d.MNG_NO||getVal(d,'BPLC_NM')+getVal(d,'ROAD_NM_ADDR','LOTNO_ADDR');}
-function fmtDate(s){if(!s||s.length<8)return s||'';return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;}
+function fmtDate(s){if(!s)return '';if(s.includes('-'))return s.slice(0,10);if(s.length>=8)return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;return s;}
 
 function openSheet(i){
   sheetIdx=i;currentItem=allData[i];
