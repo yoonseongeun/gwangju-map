@@ -200,6 +200,8 @@ async function doSearch(){
   }
   document.getElementById('loading').classList.remove('on');
   document.getElementById('searchBtn').disabled=false;
+  // 영업중인 것만 필터링 (폐업 제외)
+  allData=allData.filter(d=>(getVal(d,'SALS_STTS_NM')||'').includes('영업'));
   if(!allData.length){document.getElementById('emptyArea').style.display='block';return;}
   renderStats();renderLegend();renderList();plotMarkers();
   document.getElementById('resultArea').style.display='block';
@@ -233,7 +235,7 @@ function renderList(){
   document.getElementById('listWrap').innerHTML=allData.map((d,i)=>{
     const name=getVal(d,'BPLC_NM')||'업소명 없음';
     const addr=getVal(d,'ROAD_NM_ADDR','LOTNO_ADDR')||'주소 없음';
-    const date=fmtDate(getVal(d,'LCPMT_YMD'));
+    const date=fmtDate(getVal(d,'LCPMT_YMD','APVPERM_YMD','apvPermYmd'));
     const state=getVal(d,'SALS_STTS_NM');
     const isV=visitedSet.has(getKey(d));
     return `<div class="place-item ${isV?'visited':''}" onclick="openSheet(${i})">
