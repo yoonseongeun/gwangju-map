@@ -6,7 +6,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = '48be9d61e4ae262e8c8fc2fd48201dfa108c77284b9ba088ebcdb7c40295ce08';
 
-// 업종별 실제 엔드포인트 (apis.data.go.kr)
+// 구코드 매핑 (광주광역시 5개구)
+const GU_CODES = {
+  '3711000': '3630000', // 광산구
+  '3714000': '3611000', // 동구
+  '3711500': '3614000', // 서구
+  '3712000': '3617000', // 북구
+  '3713000': '3620000', // 남구
+};
+
+// 업종별 엔드포인트
 const BIZ_ENDPOINTS = {
   '07_22_21_P': 'https://apis.data.go.kr/1741000/general_restaurants/info',
   '07_24_01_P': 'https://apis.data.go.kr/1741000/snack_bars/info',
@@ -29,19 +38,21 @@ app.get('/api/biz', async (req, res) => {
     return res.status(400).json({ error: '필수 파라미터 없음' });
 
   const endpoint = BIZ_ENDPOINTS[bizType] || BIZ_ENDPOINTS['07_22_21_P'];
+  const localCode = GU_CODES[guCode] || guCode;
 
+  // 실제 확인된 파라미터명 사용
   const params = {
     serviceKey: API_KEY,
-    localCode: guCode,
-    lastModTsBgn: dateFrom,
-    lastModTsEnd: dateTo,
-    pageIndex: 1,
-    pageSize: 500,
-    resultType: 'json'
+    pageNo: 1,
+    numOfRows: 500,
+    returnType: 'json',
+    'cond[LCPMT_YMD::GTE]': dateFrom,
+    'cond[LCPMT_YMD::LT]': dateTo,
+    'cond[OPN_ATMY_GRP_CD::EQ]': localCode,
   };
 
   console.log('요청 URL:', endpoint);
-  console.log('파라미터:', params);
+  console.log('파라미터:', JSON.stringify(params));
 
   try {
     const r = await axios.get(endpoint, {
@@ -61,7 +72,8 @@ app.get('/api/biz', async (req, res) => {
     else if (d?.rows) items = d.rows;
     else if (d?.data) items = d.data;
     else if (d?.list) items = d.list;
-    else if (d?.items) items = Array.isArray(d.items) ? d.items : (d.items?.item ? [].concat(d.items.item) : []);
+    else if (d?.items?.item) items = [].concat(d.items.item);
+    else if (d?.response?.body?.items?.item) items = [].concat(d.response.body.items.item);
 
     res.json({ success: true, totalCnt: items.length, items });
   } catch (err) {
