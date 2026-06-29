@@ -20,7 +20,7 @@ const BIZ_ENDPOINTS = {
   '07_22_21_P': 'https://apis.data.go.kr/1741000/general_restaurants/info',
   '07_24_01_P': 'https://apis.data.go.kr/1741000/snack_bars/info',
   '07_24_05_P': 'https://apis.data.go.kr/1741000/bakeries/info',
-  '07_22_05_P': 'https://apis.data.go.kr/1741000/simple_entertainment/info',
+  '07_22_05_P': 'https://apis.data.go.kr/1741000/singing_bars/info',
   '07_22_08_P': 'https://apis.data.go.kr/1741000/entertainment_bars/info',
   '06_02_06_P': 'https://apis.data.go.kr/1741000/beauty_shops/info',
   '06_02_04_P': 'https://apis.data.go.kr/1741000/public_baths/info',
