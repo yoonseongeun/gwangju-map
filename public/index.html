@@ -202,7 +202,7 @@ async function doSearch(){
   // 영업중인 것만 필터링 (폐업 제외)
   allData=allData.filter(d=>(getVal(d,'SALS_STTS_NM')||'').includes('영업'));
   if(!allData.length){document.getElementById('emptyArea').style.display='block';return;}
-  renderStats();renderLegend();renderList();plotMarkers();
+  renderStats();renderLegend();renderList();await plotMarkers();
   document.getElementById('resultArea').style.display='block';
   document.getElementById('resultArea').scrollIntoView({behavior:'smooth'});
 }
@@ -249,20 +249,40 @@ function renderList(){
   }).join('');
 }
 
-function plotMarkers(){
+async function plotMarkers(){
   const bounds=[];
-  allData.forEach((d,i)=>{
+  markerLayer.clearLayers();
+  markerRefs={};
+
+  for(let i=0;i<allData.length;i++){
+    const d=allData[i];
     let lat=null,lng=null;
+
+    // 1. API 좌표 사용 (위경도 범위 정확히 체크)
     const x=parseFloat(getVal(d,'CRD_INFO_X'));
     const y=parseFloat(getVal(d,'CRD_INFO_Y'));
-    // CRD_INFO_X가 경도(126~127), CRD_INFO_Y가 위도(34~36)
-    if(x>100&&y>30){lat=y;lng=x;}
-    else if(y>100&&x>30){lat=x;lng=y;}
-    if(!lat||lat<30||lat>40){
-      const def=GU_CENTER[d._gu]||[35.16,126.87];
-      lat=def[0]+(Math.random()-0.5)*0.01;
-      lng=def[1]+(Math.random()-0.5)*0.01;
+    if(x>126&&x<128&&y>34&&y<36){lat=y;lng=x;}
+    else if(y>126&&y<128&&x>34&&x<36){lat=x;lng=y;}
+
+    // 2. 좌표 없으면 주소로 지오코딩
+    if(!lat){
+      const addr=getVal(d,'ROAD_NM_ADDR','LOTNO_ADDR');
+      if(addr){
+        try{
+          const r=await fetch(`/api/geocode?addr=${encodeURIComponent(addr)}`);
+          const g=await r.json();
+          if(g.lat){lat=g.lat;lng=g.lng;}
+        }catch(e){}
+      }
     }
+
+    // 3. 그래도 없으면 구 중심 근처 랜덤
+    if(!lat){
+      const def=GU_CENTER[d._gu]||[35.16,126.87];
+      lat=def[0]+(Math.random()-0.5)*0.008;
+      lng=def[1]+(Math.random()-0.5)*0.008;
+    }
+
     d._lat=lat;d._lng=lng;
     const name=getVal(d,"BPLC_NM")||"";
     const isV=visitedSet.has(getKey(d));
@@ -271,7 +291,7 @@ function plotMarkers(){
     m.on("click",()=>openSheet(i));
     markerRefs[i]=m;
     bounds.push([lat,lng]);
-  });
+  }
   if(bounds.length)map.fitBounds(bounds,{padding:[40,40]});
 }
 
@@ -305,26 +325,14 @@ function openKakao(){
   if(!currentItem)return;
   const name=encodeURIComponent(getVal(currentItem,'BPLC_NM')||'목적지');
   const addr=encodeURIComponent(getVal(currentItem,'ROAD_NM_ADDR','LOTNO_ADDR')||'');
-  const lat=currentItem._lat,lng=currentItem._lng;
-  // 모바일 앱 시도 후 웹으로 폴백
-  const appUrl=`kakaomap://look?p=${lat},${lng}`;
-  const webUrl=`https://map.kakao.com/link/to/${name},${lat},${lng}`;
-  const app=window.open(appUrl);
-  setTimeout(()=>{if(app)app.close();window.open(webUrl,'_blank');},1500);
+  // 주소로 검색 - 가장 정확함
+  window.open(`https://map.kakao.com/link/search/${addr}`,'_blank');
 }
 function openNaver(){
   if(!currentItem)return;
+  const addr=encodeURIComponent(getVal(currentItem,'ROAD_NM_ADDR','LOTNO_ADDR')||'');
   const name=encodeURIComponent(getVal(currentItem,'BPLC_NM')||'목적지');
-  const lat=currentItem._lat,lng=currentItem._lng;
-  const appUrl=`nmap://route/walk?dlat=${lat}&dlng=${lng}&dname=${name}&appname=gwangju.bizmap`;
-  const webUrl=`https://map.naver.com/v5/directions/-/-/-/walk?c=${lng},${lat},15,0,0,0,dh`;
-  const isMobile=/Android|iPhone|iPad/i.test(navigator.userAgent);
-  if(isMobile){
-    window.location.href=appUrl;
-    setTimeout(()=>window.open(webUrl,'_blank'),2000);
-  }else{
-    window.open(webUrl,'_blank');
-  }
+  window.open(`https://map.naver.com/v5/search/${addr}`,'_blank');
 }
 function toggleVisit(){
   if(sheetIdx===null)return;
