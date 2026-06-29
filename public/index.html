@@ -265,9 +265,11 @@ function plotMarkers(){
       lng=def[1]+(Math.random()-0.5)*0.01;
     }
     d._lat=lat;d._lng=lng;
-    const icon=L.divIcon({className:'',html:`<div style="width:13px;height:13px;border-radius:50%;background:${d._color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);opacity:${visitedSet.has(getKey(d))?0.4:1}"></div>`,iconSize:[13,13],iconAnchor:[6.5,6.5]});
+    const name=getVal(d,"BPLC_NM")||"";
+    const isV=visitedSet.has(getKey(d));
+    const icon=L.divIcon({className:"",html:`<div style="position:relative;display:flex;flex-direction:column;align-items:center;opacity:${isV?0.4:1}"><div style="background:rgba(255,255,255,0.93);color:#1a1a2e;font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.2);margin-bottom:3px;border-left:3px solid ${d._color};max-width:100px;overflow:hidden;text-overflow:ellipsis">${name}</div><div style="width:11px;height:11px;border-radius:50%;background:${d._color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35)"></div></div>`,iconSize:[100,40],iconAnchor:[50,40]});
     const m=L.marker([lat,lng],{icon}).addTo(markerLayer);
-    m.on('click',()=>openSheet(i));
+    m.on("click",()=>openSheet(i));
     markerRefs[i]=m;
     bounds.push([lat,lng]);
   });
