@@ -15,18 +15,17 @@ const GU_CODES = {
   '3713000': '3610000', // 남구 ✅
 };
 
-// 업종별 엔드포인트
+// 업종별 엔드포인트 (확인된 주소)
 const BIZ_ENDPOINTS = {
-  '07_22_21_P': 'https://apis.data.go.kr/1741000/general_restaurants/info',
-  '07_24_01_P': 'https://apis.data.go.kr/1741000/snack_bars/info',
-  '07_24_05_P': 'https://apis.data.go.kr/1741000/bakeries/info',
-  '07_22_05_P': 'https://apis.data.go.kr/1741000/singing_bars/info',
-  '07_22_08_P': 'https://apis.data.go.kr/1741000/entertainment_bars/info',
-  '06_02_06_P': 'https://apis.data.go.kr/1741000/beauty_shops/info',
-  '06_02_04_P': 'https://apis.data.go.kr/1741000/public_baths/info',
-  '03_01_02_P': 'https://apis.data.go.kr/1741000/clinics/info',
-  '03_01_04_P': 'https://apis.data.go.kr/1741000/dental_clinics/info',
-  '15_01_17_P': 'https://apis.data.go.kr/1741000/convenience_stores/info',
+  '07_22_21_P': 'https://apis.data.go.kr/1741000/general_restaurants/info',   // 일반음식점 ✅
+  '07_24_01_P': 'https://apis.data.go.kr/1741000/snack_bars/info',            // 휴게음식점
+  '07_24_05_P': 'https://apis.data.go.kr/1741000/bakeries/info',              // 제과점 ✅
+  '07_22_05_P': 'https://apis.data.go.kr/1741000/singing_bars/info',          // 단란주점 ✅
+  '07_22_08_P': 'https://apis.data.go.kr/1741000/entertainment_bars/info',    // 유흥주점 ✅
+  '06_02_06_P': 'https://apis.data.go.kr/1741000/beauty_salons/info',         // 미용업 ✅
+  '03_01_02_P': 'https://apis.data.go.kr/1741000/clinics/info',               // 의원 ✅
+  '03_01_03_P': 'https://apis.data.go.kr/1741000/hospitals/info',             // 병원 ✅
+  '15_01_99_P': 'https://apis.data.go.kr/1741000/other_food_retailers/info',  // 슈퍼마켓 ✅
 };
 
 app.use(express.static(path.join(__dirname, 'public')));
