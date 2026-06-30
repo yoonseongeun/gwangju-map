@@ -6,54 +6,28 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = '48be9d61e4ae262e8c8fc2fd48201dfa108c77284b9ba088ebcdb7c40295ce08';
 
-// TM중부원점 → WGS84 변환
-function tmToWgs84(x, y) {
-  // 상수 정의
-  const a = 6378137.0;
-  const f = 1 / 298.257223563;
-  const k0 = 1.0;
-  const dx = 200000.0, dy = 500000.0;
-  const lon0 = 127.0 * Math.PI / 180;
-  const lat0 = 38.0 * Math.PI / 180;
+// 지오코딩 캐시 (같은 주소 반복 호출 방지)
+const geoCache = new Map();
 
-  const e2 = 2 * f - f * f;
-  const e = Math.sqrt(e2);
-  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
-  const n = a / Math.sqrt(1 - e2 * Math.sin(lat0) ** 2);
-  const M0 = a * ((1 - e2/4 - 3*e2**2/64 - 5*e2**3/256) * lat0
-    - (3*e2/8 + 3*e2**2/32 + 45*e2**3/1024) * Math.sin(2*lat0)
-    + (15*e2**2/256 + 45*e2**3/1024) * Math.sin(4*lat0)
-    - (35*e2**3/3072) * Math.sin(6*lat0));
-
-  const X = x - dx;
-  const Y = y - dy;
-  const M = M0 + Y / k0;
-  const mu = M / (a * (1 - e2/4 - 3*e2**2/64 - 5*e2**3/256));
-  const phi1 = mu
-    + (3*e1/2 - 27*e1**3/32) * Math.sin(2*mu)
-    + (21*e1**2/16 - 55*e1**4/32) * Math.sin(4*mu)
-    + (151*e1**3/96) * Math.sin(6*mu)
-    + (1097*e1**4/512) * Math.sin(8*mu);
-
-  const N1 = a / Math.sqrt(1 - e2 * Math.sin(phi1)**2);
-  const T1 = Math.tan(phi1) ** 2;
-  const C1 = e2 / (1 - e2) * Math.cos(phi1) ** 2;
-  const R1 = a * (1 - e2) / Math.pow(1 - e2 * Math.sin(phi1)**2, 1.5);
-  const D = X / (N1 * k0);
-
-  const lat = phi1 - (N1 * Math.tan(phi1) / R1) * (
-    D**2/2 - (5 + 3*T1 + 10*C1 - 4*C1**2 - 9*e2/(1-e2)) * D**4/24
-    + (61 + 90*T1 + 298*C1 + 45*T1**2 - 252*e2/(1-e2) - 3*C1**2) * D**6/720
-  );
-  const lon = lon0 + (
-    D - (1 + 2*T1 + C1) * D**3/6
-    + (5 - 2*C1 + 28*T1 - 3*C1**2 + 8*e2/(1-e2) + 24*T1**2) * D**5/120
-  ) / Math.cos(phi1);
-
-  return {
-    lat: lat * 180 / Math.PI,
-    lng: lon * 180 / Math.PI
-  };
+async function geocodeAddress(addr) {
+  if (geoCache.has(addr)) return geoCache.get(addr);
+  try {
+    const r = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: { format: 'json', q: addr, limit: 1, countrycodes: 'kr' },
+      headers: { 'User-Agent': 'GwangjuBizMap/1.0 (contact@example.com)' },
+      timeout: 8000
+    });
+    const result = r.data[0];
+    if (result) {
+      const coord = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) };
+      geoCache.set(addr, coord);
+      return coord;
+    }
+  } catch (e) {
+    console.error('지오코딩 실패:', addr, e.message);
+  }
+  geoCache.set(addr, null);
+  return null;
 }
 
 // 구코드 매핑 (광주광역시 5개구)
@@ -124,21 +98,18 @@ app.get('/api/biz', async (req, res) => {
     else if (d?.items?.item) items = [].concat(d.items.item);
     else if (d?.response?.body?.items?.item) items = [].concat(d.response.body.items.item);
 
-    // TM좌표 → 위경도 변환하여 _lat, _lng 추가
-    items = items.map(item => {
-      const x = parseFloat(item.CRD_INFO_X);
-      const y = parseFloat(item.CRD_INFO_Y);
-      if (!isNaN(x) && !isNaN(y) && x > 0 && y > 0) {
-        try {
-          const { lat, lng } = tmToWgs84(x, y);
-          if (lat > 30 && lat < 40 && lng > 120 && lng < 130) {
-            item._lat = lat;
-            item._lng = lng;
-          }
-        } catch (e) {}
+    // 주소 기반 지오코딩 (TM좌표 변환 대신 정확한 주소 검색 사용)
+    items = await Promise.all(items.map(async (item) => {
+      const addr = item.ROAD_NM_ADDR || item.LOTNO_ADDR;
+      if (addr) {
+        const coord = await geocodeAddress(addr);
+        if (coord) {
+          item._lat = coord.lat;
+          item._lng = coord.lng;
+        }
       }
       return item;
-    });
+    }));
 
     res.json({ success: true, totalCnt: items.length, items });
   } catch (err) {
