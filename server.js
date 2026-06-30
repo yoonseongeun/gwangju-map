@@ -6,28 +6,45 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = '48be9d61e4ae262e8c8fc2fd48201dfa108c77284b9ba088ebcdb7c40295ce08';
 
+const KAKAO_REST_KEY = 'c868210b389114ec694e334f5cb16b45';
+
 // 지오코딩 캐시 (같은 주소 반복 호출 방지)
 const geoCache = new Map();
 
 async function geocodeAddress(addr) {
   if (geoCache.has(addr)) return geoCache.get(addr);
   try {
-    const r = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: { format: 'json', q: addr, limit: 1, countrycodes: 'kr' },
-      headers: { 'User-Agent': 'GwangjuBizMap/1.0 (contact@example.com)' },
+    const r = await axios.get('https://dapi.kakao.com/v2/local/search/address.json', {
+      params: { query: addr },
+      headers: { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` },
       timeout: 8000
     });
-    const result = r.data[0];
-    if (result) {
-      const coord = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) };
+    const docs = r.data.documents;
+    if (docs && docs.length > 0) {
+      const coord = { lat: parseFloat(docs[0].y), lng: parseFloat(docs[0].x) };
       geoCache.set(addr, coord);
       return coord;
     }
   } catch (e) {
-    console.error('지오코딩 실패:', addr, e.message);
+    console.error('카카오 지오코딩 실패:', addr, e.response?.data || e.message);
   }
   geoCache.set(addr, null);
   return null;
+}
+
+// 카카오 API는 빠르고 분당 호출수 제한이 넉넉해서 동시 처리 가능
+async function geocodeBatch(items) {
+  return Promise.all(items.map(async (item) => {
+    const addr = item.ROAD_NM_ADDR || item.LOTNO_ADDR;
+    if (addr) {
+      const coord = await geocodeAddress(addr);
+      if (coord) {
+        item._lat = coord.lat;
+        item._lng = coord.lng;
+      }
+    }
+    return item;
+  }));
 }
 
 // 구코드 매핑 (광주광역시 5개구)
@@ -98,18 +115,8 @@ app.get('/api/biz', async (req, res) => {
     else if (d?.items?.item) items = [].concat(d.items.item);
     else if (d?.response?.body?.items?.item) items = [].concat(d.response.body.items.item);
 
-    // 주소 기반 지오코딩 (TM좌표 변환 대신 정확한 주소 검색 사용)
-    items = await Promise.all(items.map(async (item) => {
-      const addr = item.ROAD_NM_ADDR || item.LOTNO_ADDR;
-      if (addr) {
-        const coord = await geocodeAddress(addr);
-        if (coord) {
-          item._lat = coord.lat;
-          item._lng = coord.lng;
-        }
-      }
-      return item;
-    }));
+    // 주소 기반 지오코딩 (순차 처리로 rate limit 회피)
+    items = await geocodeBatch(items);
 
     res.json({ success: true, totalCnt: items.length, items });
   } catch (err) {
@@ -126,15 +133,8 @@ app.get('/api/biz', async (req, res) => {
 app.get('/api/geocode', async (req, res) => {
   const { addr } = req.query;
   if (!addr) return res.status(400).json({ error: '주소 없음' });
-  try {
-    const r = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: { format: 'json', q: addr, limit: 1, countrycodes: 'kr' },
-      headers: { 'User-Agent': 'GwangjuBizMap/1.0' },
-      timeout: 8000
-    });
-    const g = r.data[0];
-    res.json(g ? { lat: parseFloat(g.lat), lng: parseFloat(g.lon) } : { lat: null, lng: null });
-  } catch { res.json({ lat: null, lng: null }); }
+  const coord = await geocodeAddress(addr);
+  res.json(coord || { lat: null, lng: null });
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
