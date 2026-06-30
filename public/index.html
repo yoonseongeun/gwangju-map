@@ -256,15 +256,9 @@ async function plotMarkers(){
 
   for(let i=0;i<allData.length;i++){
     const d=allData[i];
-    let lat=null,lng=null;
+    let lat=d._lat,lng=d._lng;
 
-    // 1. API 좌표 사용 (위경도 범위 정확히 체크)
-    const x=parseFloat(getVal(d,'CRD_INFO_X'));
-    const y=parseFloat(getVal(d,'CRD_INFO_Y'));
-    if(x>126&&x<128&&y>34&&y<36){lat=y;lng=x;}
-    else if(y>126&&y<128&&x>34&&x<36){lat=x;lng=y;}
-
-    // 2. 좌표 없으면 주소로 지오코딩
+    // 서버에서 변환된 좌표가 없으면 주소로 지오코딩
     if(!lat){
       const addr=getVal(d,'ROAD_NM_ADDR','LOTNO_ADDR');
       if(addr){
@@ -276,7 +270,6 @@ async function plotMarkers(){
       }
     }
 
-    // 3. 그래도 없으면 구 중심 근처 랜덤
     if(!lat){
       const def=GU_CENTER[d._gu]||[35.16,126.87];
       lat=def[0]+(Math.random()-0.5)*0.008;
