@@ -285,7 +285,10 @@ async function plotMarkers(){
     markerRefs[i]=m;
     bounds.push([lat,lng]);
   }
-  if(bounds.length)map.fitBounds(bounds,{padding:[40,40]});
+  if(bounds.length){
+    map.invalidateSize();
+    map.fitBounds(bounds,{padding:[40,40]});
+  }
 }
 
 function getKey(d){return d.MNG_NO||getVal(d,'BPLC_NM')+getVal(d,'ROAD_NM_ADDR','LOTNO_ADDR');}
