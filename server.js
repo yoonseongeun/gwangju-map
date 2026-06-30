@@ -174,5 +174,47 @@ app.get('/api/geocode', async (req, res) => {
   });
 });
 
+// 디버그 전용: 캐시 무시하고 카카오 API 원본 응답/에러를 그대로 노출
+app.get('/api/debug-geocode', async (req, res) => {
+  const { addr } = req.query;
+  if (!addr) return res.status(400).json({ error: '주소 없음' });
+
+  const result = { addr, key_length: KAKAO_REST_KEY.length };
+
+  try {
+    const r = await axios.get('https://dapi.kakao.com/v2/local/search/address.json', {
+      params: { query: addr },
+      headers: { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` },
+      timeout: 8000
+    });
+    result.address_api_status = r.status;
+    result.address_api_data = r.data;
+  } catch (e) {
+    result.address_api_error = {
+      status: e.response?.status,
+      data: e.response?.data,
+      message: e.message
+    };
+  }
+
+  try {
+    const r2 = await axios.get('https://dapi.kakao.com/v2/local/search/keyword.json', {
+      params: { query: addr },
+      headers: { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` },
+      timeout: 8000
+    });
+    result.keyword_api_status = r2.status;
+    result.keyword_api_data = r2.data;
+  } catch (e) {
+    result.keyword_api_error = {
+      status: e.response?.status,
+      data: e.response?.data,
+      message: e.message
+    };
+  }
+
+  res.json(result);
+});
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.listen(PORT, () => console.log(`서버: http://localhost:${PORT}`));
