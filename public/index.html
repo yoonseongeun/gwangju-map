@@ -151,20 +151,27 @@ const BIZ_LIST=[
   {id:'15_01_99_P',name:'슈퍼마켓',color:'#f57c00'},
 ];
 
-let selectedGu=new Set(['3711000']),selectedBiz='07_22_21_P';
+let selectedGu=new Set(['3711000']),selectedBiz=new Set(['07_22_21_P']);
 let map,markerLayer,allData=[],markerRefs={};
 let visitedSet=new Set(JSON.parse(localStorage.getItem('visited')||'[]'));
 let sheetIdx=null,currentItem=null;
 
 function renderBizChips(){
   document.getElementById('bizScroll').innerHTML=BIZ_LIST.map(b=>
-    `<div class="biz-chip ${b.id===selectedBiz?'on':''}" style="${b.id===selectedBiz?`background:${b.color};border-color:${b.color}`:''}" onclick="selectBiz('${b.id}',this,'${b.color}')">${b.name}</div>`
+    `<div class="biz-chip ${selectedBiz.has(b.id)?'on':''}" style="${selectedBiz.has(b.id)?`background:${b.color};border-color:${b.color}`:''}" onclick="toggleBiz('${b.id}','${b.color}',this)">${b.name}</div>`
   ).join('');
 }
-function selectBiz(id,el,color){
-  selectedBiz=id;
-  document.querySelectorAll('.biz-chip').forEach(c=>{c.classList.remove('on');c.style.background='';c.style.borderColor='';});
-  el.classList.add('on');el.style.background=color;el.style.borderColor=color;
+function toggleBiz(id,color,el){
+  if(selectedBiz.has(id)){
+    if(selectedBiz.size===1)return; // 최소 1개는 선택 유지
+    selectedBiz.delete(id);
+    el.classList.remove('on');
+    el.style.background='';el.style.borderColor='';
+  } else {
+    selectedBiz.add(id);
+    el.classList.add('on');
+    el.style.background=color;el.style.borderColor=color;
+  }
 }
 function toggleGu(btn){
   const gu=btn.dataset.gu;
@@ -188,18 +195,31 @@ async function doSearch(){
   document.getElementById('emptyArea').style.display='none';
   allData=[];markerRefs={};
   initMap();markerLayer.clearLayers();
+
   const guList=Array.from(selectedGu);
-  for(let i=0;i<guList.length;i++){
-    const gu=guList[i];
-    document.getElementById('loadingText').textContent=`${GU_NAMES[gu]} 조회 중... (${i+1}/${guList.length})`;
-    document.getElementById('loading').classList.add('on');
-    const items=await fetchData(selectedBiz,gu,df,dt);
-    items.forEach(item=>{item._gu=gu;item._guName=GU_NAMES[gu];item._color=GU_COLORS[gu];});
-    allData=allData.concat(items);
+  const bizList=Array.from(selectedBiz);
+  const total=guList.length*bizList.length;
+  let done=0;
+
+  for(const gu of guList){
+    for(const biz of bizList){
+      done++;
+      const bizName=BIZ_LIST.find(b=>b.id===biz)?.name||biz;
+      document.getElementById('loadingText').textContent=`${GU_NAMES[gu]} ${bizName} 조회 중... (${done}/${total})`;
+      document.getElementById('loading').classList.add('on');
+      const items=await fetchData(biz,gu,df,dt);
+      const bizColor=BIZ_LIST.find(b=>b.id===biz)?.color||GU_COLORS[gu];
+      items.forEach(item=>{
+        item._gu=gu;
+        item._guName=GU_NAMES[gu];
+        item._color=bizColor;
+        item._bizName=bizName;
+      });
+      allData=allData.concat(items);
+    }
   }
   document.getElementById('loading').classList.remove('on');
   document.getElementById('searchBtn').disabled=false;
-  // 영업중인 것만 필터링 (폐업 제외)
   allData=allData.filter(d=>(getVal(d,'SALS_STTS_NM')||'').includes('영업'));
   if(!allData.length){document.getElementById('emptyArea').style.display='block';return;}
   renderStats();renderLegend();renderList();await plotMarkers();
@@ -225,10 +245,11 @@ function renderStats(){
   document.getElementById('stVisit').textContent=visited;
 }
 function renderLegend(){
-  const guInUse=[...new Set(allData.map(d=>d._gu))];
-  document.getElementById('legendBar').innerHTML=guInUse.map(gu=>
-    `<div class="legend-item"><div class="legend-dot" style="background:${GU_COLORS[gu]}"></div>${GU_NAMES[gu]}</div>`
-  ).join('');
+  const bizInUse=[...new Set(allData.map(d=>d._bizName))];
+  document.getElementById('legendBar').innerHTML=bizInUse.map(name=>{
+    const biz=BIZ_LIST.find(b=>b.name===name);
+    return biz?`<div class="legend-item"><div class="legend-dot" style="background:${biz.color}"></div>${name}</div>`:'';
+  }).join('');
 }
 function renderList(){
   document.getElementById('listWrap').innerHTML=allData.map((d,i)=>{
@@ -242,7 +263,7 @@ function renderList(){
       <div class="place-info">
         <div class="place-name">${name}</div>
         <div class="place-addr">${addr}</div>
-        <div class="place-meta">${d._guName} · ${date} 인허가 · <span style="color:${state.includes('영업')?'#0F6E56':'#A32D2D'}">${state}</span></div>
+        <div class="place-meta">${d._guName} · ${d._bizName||''} · ${date} 인허가 · <span style="color:${state.includes('영업')?'#0F6E56':'#A32D2D'}">${state}</span></div>
         ${isV?'<span class="visited-badge">✓ 방문완료</span>':''}
       </div>
     </div>`;
@@ -303,7 +324,7 @@ function openSheet(i){
   const state=getVal(d,'SALS_STTS_NM');
   document.getElementById('sheetName').textContent=name;
   document.getElementById('sheetAddr').textContent=addr;
-  document.getElementById('sheetMeta').textContent=`${d._guName} · ${date} 인허가 · ${state}`;
+  document.getElementById('sheetMeta').textContent=`${d._guName} · ${d._bizName||''} · ${date} 인허가 · ${state}`;
   const isV=visitedSet.has(getKey(d));
   const vb=document.getElementById('visitBtn');
   vb.textContent=isV?'✓ 방문완료 취소':'✓ 방문 완료 체크';
